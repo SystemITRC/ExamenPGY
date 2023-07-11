@@ -1,0 +1,208 @@
+from datetime import date
+
+TIPOS = {
+    "A":[3800,0], #Letra : [PrecioVenta, Cantidad]
+    "B":[3000,0],
+    "C":[2800,0],
+    "D":[3500,0],
+}
+
+HOTEL = {f"{letra}{piso}":[False,"tipo","run",0,"estado"] for letra in TIPOS.keys() for piso in range(10,0,-1)}
+Rut_Attemp = 0
+Total = 0
+
+def error(msg):
+    print("\033[1;31m"+msg+"\033[0m")
+
+def success(msg):
+    print("\033[1;32m"+msg+"\033[0m")
+
+def result(msg):
+    print("\033[1;34m"+msg+"\033[0m")
+
+def Calcular_Verificador(dig):
+    RD = dig[::-1]
+    F = 2
+    S = 0
+    for digito in RD:
+        S += int(digito)*F
+        F += 1
+        if F > 7:
+            F = 2
+    DV = 11-(S%11)
+    if DV == 11:
+        DV = "0"
+    elif DV == 10:
+        DV = "K"
+    return str(DV)
+
+def Format_Rut(rut):
+    Clean = ''.join(filter(str.isalnum,rut))
+    D = Clean[:-1]
+    D_verificador = Clean[-1]
+    D_invertidos = D[::-1]
+    D_formateado = '.'.join(D_invertidos[i:i+3] for i in range(0,len(D_invertidos),3))[::-1]
+    Final = D_formateado+"-"+D_verificador
+    return (Final.upper(),D)
+
+def Check_Rut(rut):
+    global Rut_Attemp
+    if len(rut) > 0:
+        Clean = ''.join(filter(str.isalnum,rut))
+        D = Clean[:-1]
+        V = Clean[-1]
+        if (9>len(D)>7) and (V.isdigit() or V.upper() == "K") and (Clean[::-1].isdigit()) and (Calcular_Verificador(D) == V):
+            Rut_Attemp = 0
+            return (True,Format_Rut(rut)[1])
+        else:
+            if Rut_Attemp == 0:
+                Rut_Attemp += 1
+                error("Se ha introducido un posible rut sin verificador, recalculando.")
+                New_Rut = Format_Rut(rut+Calcular_Verificador(rut))
+                success(f"Reintentando con rut: {New_Rut[0]}")
+                Confirm = SafeChoose("El rut mencionado es correcto?",["Si","No"])
+                if Confirm in ("1","si"):
+                    return Check_Rut(New_Rut[0])
+                elif Confirm in ("2","no"):
+                    return(False, "No rut")
+                else:
+                    error("Eleccion invalida, volviendo al menu.")
+                    return(False,"No rut")
+            else:
+                Rut_Attemp = 0
+                return(False,"No rut")
+    else:
+        Rut_Attemp = 0
+        return (False,"No rut")
+    
+def SafeChoose(message="", opciones=["Lista vacia"], Tolower=True, valuet=str):
+    while True:
+        y = "\n".join([f"{i+1}- {value}" for i, value in enumerate(opciones)])
+        x = input(f"\n{message}\n{y}\nR: ")
+        if Tolower:
+            x = x.lower()
+        try:
+            x = valuet(x)
+            return x
+        except ValueError:
+            error("Valor inválido. Intenta nuevamente.")
+
+def SafeInput(message="",Tolower=False,valuet=str):
+    while True:
+        x = input(f"\n{message}\t\t\nR: ")
+        if Tolower:
+            x = x.lower()
+        try:
+            x = valuet(x)
+            return x
+        except:
+            error("Valor invalido, intente nuevamente.")
+
+def Show_Tipos():
+    n = 0
+    result("\n| TIPOS\t\t| Precio")
+    for i,v in TIPOS.items():
+        n += 1
+        result(f"| {i}\t\t| ${v[0]}")
+
+def ShowDepartamentos():
+    piso = f"| PISO\t| {' | '.join(TIPOS.keys())} |"
+    long = len(piso)-1
+    result("|"+"="*long+f"|\n{piso}\n"+"|" + "=" * long+ "|")
+    for i in range(10, 0, -1):
+        LstDep = [CheckDepa(f"{letra}{i}") for letra in TIPOS.keys()]
+        result(f"| {i}\t| {' | '.join(LstDep)} |")
+    result("|"+"="*long+"|")
+
+def ShowBuyers():
+    compradores = []
+    for dep, data in HOTEL.items():
+        if data[0] and data[2]:
+            buyer = (data[2], dep)
+            compradores.append(buyer)
+    compradores.sort(key=lambda x: x[0])
+    if compradores:
+        result("Listado de compradores:")
+        for buyer in compradores:
+            result(f"- RUN: {buyer[0]}, Departamento: {buyer[1]}")
+    else:
+        result("No hay compradores registrados.")
+
+def ShowEarnings():
+    n = 0
+    result("TIPO DEPARTAMENTO\t| Cantidad\t| Total")
+    for i,v in TIPOS.items():
+        result(f"Tipo {i}\t${v[0]}\t\t| {v[1]}\t\t| ${v[1]*v[0]}")
+        if (v[1] > 0):
+            n += v[1]
+    result(f"TOTAL\t\t\t| {n}\t\t| ${Total}")
+
+def CheckDepa(dep):
+    if HOTEL[dep][0]:
+        if HOTEL[dep][4] == "VENDIDO":
+            return "X"
+    return " "
+
+def ChangeStatus(dep, tipo, rut,estado):
+    HOTEL[dep][0] = True
+    HOTEL[dep][1] = tipo
+    HOTEL[dep][2] = rut
+    HOTEL[dep][3] = 0
+    HOTEL[dep][4] = estado
+    TIPOS[tipo][1] += 1
+
+def comprar():
+    global Total
+    Show_Tipos()
+    tipo = SafeInput("¿Qué tipo de departamento quiere? ").upper()
+    if tipo in TIPOS.keys():
+        piso = SafeInput("¿En qué piso quiere comprar? ", False, int)
+        if 1 <= piso <= 10:
+            departamento = tipo + str(piso)
+            if departamento in HOTEL and (not HOTEL[departamento][0]):
+                success(f"Ha seleccionado el departamento: {departamento}")
+                Run = SafeInput("Ingrese su RUT para continuar: ")
+                R = Check_Rut(Run)
+                if R[0]:
+                    Run = R[1]
+                    metodo = SafeChoose("¿Desea confirmar la compra?", ["Si", "No"])
+                    if metodo in ("1", "si"):
+                        Precio = TIPOS[tipo][0]
+                        Total += Precio
+                        ChangeStatus(departamento, tipo, Run,"VENDIDO")
+                        success("¡El departamento se ha comprado con éxito!")
+                    elif metodo in ("2","no"):
+                        success("Compra cancelada. Volviendo al menu.")
+                    else:
+                        error("Elección inválida. Volviendo al menú.")
+                else:
+                    error("RUT inválido. Volviendo al menú.")
+            else:
+                error("El departamento seleccionado no está disponible. Volviendo al menú.")
+        else:
+            error("El número de piso ingresado no es válido (1-10). Volviendo al menú.")
+    else:
+        error("El tipo de departamento ingresado no es válido. Volviendo al menú.")
+
+def exit():
+    fecha = date.today().strftime("%d/%m/%Y")
+    nombre = "itamar carrasco".title()
+    success(f"Programa finalizado con exito.\n{nombre} - {fecha}")
+
+
+while True:
+    Header = "==============================\n          CASA FELIZ          \n=============================="
+    Eleccion = SafeChoose(f"{Header}",["Comprar departamento","Mostrar departamentos","Ver listado de compradores","Mostrar ganancias totales","Salir"],True,str)
+    if Eleccion in ("1","comprar","comprar departamento"):
+        comprar()
+    elif Eleccion in ("2","mostrar","mostrar departamentos"):
+        ShowDepartamentos()
+    elif Eleccion in ("3","ver listado","ver listado de compradores"):
+        ShowBuyers()
+    elif Eleccion in ("4","mostrar ganancias","mostrar ganancias totales"):
+        ShowEarnings()
+    elif Eleccion in ("5","salir"):
+        exit()
+        break
+    else:
+        error("Elección inválida.")
